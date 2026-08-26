@@ -211,8 +211,6 @@ Validity  → pipeline control
 
 **Detailed theory:** [`docs/theory/day-03-tl-verilog.md`](docs/theory/day-03-tl-verilog.md)
 
-**Lab record:** [`docs/labs/day-03-labs.md`](docs/labs/day-03-labs.md)
-
 **TL-Verilog examples:** [`day-03-tl-verilog-makerchip/lab-snippets/`](day-03-tl-verilog-makerchip/lab-snippets/)
 
 ---
@@ -340,8 +338,6 @@ The target calculation is:
 This provided an end-to-end functional check instead of testing individual signals only.
 
 **Detailed theory:** [`docs/theory/day-04-risc-v-cpu.md`](docs/theory/day-04-risc-v-cpu.md)
-
-**Lab record:** [`docs/labs/day-04-labs.md`](docs/labs/day-04-labs.md)
 
 **Development notes:** [`day-04-risc-v-cpu/cpu-development-notes.md`](day-04-risc-v-cpu/cpu-development-notes.md)
 
@@ -709,8 +705,6 @@ By the end of the workshop, I developed practical exposure to:
 The repository includes:
 
 - My course notes
-- Lab/question material
-- Supplied workshop slides
 - Day-by-day theory
 - Day-by-day lab documentation
 - TL-Verilog examples
@@ -719,7 +713,6 @@ The repository includes:
 - Development variants
 - Screenshots/results
 
-The reference material is stored under [`docs/reference/`](docs/reference/).
 
 > **Copyright note:** The supplied workshop PDFs contain third-party course material. If this repository is made public, redistribution rights for those PDFs should be checked. They can alternatively be kept locally and excluded from the public GitHub repository.
 
