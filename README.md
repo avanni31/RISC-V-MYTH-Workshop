@@ -1,753 +1,333 @@
-# RISC-V MYTH Workshop — 5-Day Hardware Design Portfolio
+# 🚀 RISC-V RV32I Pipelined Processor Core
 
-> **A five-day hands-on journey from RISC-V fundamentals and digital logic to a pipelined RISC-V CPU using TL-Verilog and Makerchip.**
-
-This repository documents my complete work from a five-day RISC-V/MYTH workshop. It is organized as a **learning journey and engineering portfolio**, not just a collection of lab answers.
-
-The work progressed from understanding how a RISC-V processor is defined and how instructions are represented, through digital logic and TL-Verilog, and finally into the implementation, pipelining, hazard handling and verification of a RISC-V CPU.
+A high-performance, 5-stage pipelined RISC-V (RV32I) processor core designed using Transaction-Level Verilog (TL-Verilog) and verified in the Makerchip IDE. Developed as a comprehensive hardware engineering project, this core implements instruction fetching, instruction decoding, immediate value extraction, arithmetic-logic unit (ALU) execution, data memory interfacing, and robust hazard mitigation strategies including register bypassing and load-use hazard replays.
 
 ---
 
-## Table of Contents
+## 🗺️ Project Navigation
 
-- [About the Workshop](#about-the-workshop)
-- [My Five-Day Learning Journey](#my-five-day-learning-journey)
-- [Final Project — Pipelined RISC-V CPU](#final-project--pipelined-risc-v-cpu)
-- [What I Implemented](#what-i-implemented)
-- [Verification](#verification)
-- [Tools and Technologies](#tools-and-technologies)
-- [Repository Structure](#repository-structure)
-- [Skills Developed](#skills-developed)
-- [Evidence and Reference Material](#evidence-and-reference-material)
-- [Acknowledgements](#acknowledgements)
+* **Processor Core Source**: [final_cpu.tlv](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/day-05-pipelined-risc-v/final_cpu.tlv)
+* **Development Progression**: [development-variants/](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/day-05-pipelined-risc-v/development-variants/)
+* **Project Showcase**: [project-showcase/README.md](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/project-showcase/README.md)
+* **Core Documentation**: [docs/](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/)
+  * **Theory Records**: [Day 1](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/theory/day-01-risc-v-fundamentals.md) | [Day 2](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/theory/day-02-isa-and-encoding.md) | [Day 3](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/theory/day-03-tl-verilog.md) | [Day 4](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/theory/day-04-risc-v-cpu.md) | [Day 5](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/theory/day-05-pipelining.md)
+  * **Lab Records**: [Day 1](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/labs/day-01-labs.md) | [Day 2](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/labs/day-02-labs.md) | [Day 3](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/labs/day-03-labs.md) | [Day 4](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/labs/day-04-labs.md) | [Day 5](file:///Users/avannithakur/Desktop/RISC-V-MYTH-Workshop/docs/labs/day-05-labs.md)
 
 ---
 
-# About the Workshop
+## 🛠️ Processor Specifications & Microarchitecture
 
-The workshop introduced the design of a processor from the ground up, starting with the fundamentals required to understand a RISC-V CPU and progressing into actual hardware implementation.
+The design maps the complete RISC-V RV32I Base Integer Instruction Set across a 5-stage instruction pipeline.
 
-The overall progression was:
-
-```text
-RISC-V ISA
-    ↓
-Instruction formats / ABI / memory
-    ↓
-Digital logic
-    ↓
-TL-Verilog + Makerchip
-    ↓
-Sequential logic + state
-    ↓
-Pipelining concepts
-    ↓
-RISC-V CPU datapath
-    ↓
-Instruction decoding
-    ↓
-ALU + Register File
-    ↓
-Branches + Memory
-    ↓
-Pipeline validity
-    ↓
-Hazards + Bypassing
-    ↓
-Load Replay
-    ↓
-Final CPU + Verification
+```mermaid
+graph TD
+    %% Define styles
+    classDef stageP fill:#1E293B,stroke:#38BDF8,stroke-width:2px,color:#fff;
+    classDef stageD fill:#1E293B,stroke:#34D399,stroke-width:2px,color:#fff;
+    classDef stageR fill:#1E293B,stroke:#F59E0B,stroke-width:2px,color:#fff;
+    classDef stageE fill:#1E293B,stroke:#EC4899,stroke-width:2px,color:#fff;
+    classDef stageW fill:#1E293B,stroke:#A855F7,stroke-width:2px,color:#fff;
+    
+    subgraph Pipeline Stages
+        P["Stage 0: PC / Fetch<br>[$pc, $instr]"] --> D["Stage 1: Decode<br>[Type/Imm Decode]"]
+        D --> R["Stage 2: Register Read<br>[RF Read, $src1/2_value]"]
+        R --> E["Stage 3: Execute / ALU<br>[$result, $taken_br, $ld_addr]"]
+        E --> W["Stage 4: Writeback / DMem<br>[RF Write, DMem Rd/Wr]"]
+    end
+    
+    %% Feedback paths
+    W -.->|Bypass Result Forwarding| R
+    E -.->|Branch Taken / Redirect| P
+    E -.->|Load Replay / Redirect| P
+    
+    class P stageP;
+    class D stageD;
+    class R stageR;
+    class E stageE;
+    class W stageW;
 ```
 
-The supplied workshop material divides the implementation-oriented portion into Day 3 (digital logic/TL-Verilog), Day 4 (coding a RISC-V CPU subset), and Day 5 (pipelining and completing the CPU).
+* **ISA Architecture**: RV32I (32-bit Integer Instruction Set) including arithmetic, logical, conditional branch, load/store memory operations, and jumps.
+* **Pipeline Structure**: 5 Stages (`Fetch`, `Decode`, `Register Read`, `Execute`, `Writeback`) annotated with `@0` to `@4` timing stages.
+* **Hazard Resolution**:
+  * **Data Hazards**: Register file bypass path dynamically routes results from the execution/writeback stages back to the inputs of dependent instructions.
+  * **Control Hazards**: Taken branches invalidate sequentially fetched instructions during execution and redirect the PC.
+  * **Load-Use Hazards**: A load-replay path forces dependent instructions to stall and refetch if they attempt to read load data before it is available from memory.
+* **Automatic Clock Gating**: The TL-Verilog compiler automatically synthesizes clock-gating cells based on transaction validity (`$valid`), significantly reducing active switching power.
 
 ---
 
-# My Five-Day Learning Journey
+## ⚡ SystemVerilog vs. TL-Verilog Comparison
 
-## Day 1 — RISC-V Fundamentals
+Developing hardware in Transaction-Level Verilog (TL-Verilog) shifts focus from low-level register instantiation and clock-to-clock pipeline staging to high-level logic pipelines.
 
-The first day established the foundation for everything that followed.
-
-I worked through the relationship between software and the processor and learned how an ISA defines the instructions and architectural behavior visible to software.
-
-### Topics covered
-
-- RISC-V instruction-set architecture
-- Base integer instructions
-- Instruction extensions
-- Pseudoinstructions
-- Compiler / assembler / machine-code flow
-- Integer widths
-- Signed and unsigned representation
-- Register conventions
-- ABI register names
-- Memory representation
-- Little-endian storage
-
-### Why this mattered
-
-Before implementing a CPU, I needed to understand exactly what the CPU is expected to execute. The register conventions, instruction formats and memory representation later became direct inputs to the CPU's decode and datapath logic.
-
-**Detailed notes:** [`docs/theory/day-01-risc-v-fundamentals.md`](docs/theory/day-01-risc-v-fundamentals.md)
-
-**Day folder:** [`day-01-risc-v-fundamentals/`](day-01-risc-v-fundamentals/)
+| Aspect | SystemVerilog | TL-Verilog |
+|---|---|---|
+| **Code Verbosity** | Sprawling; requires manual staging buffers and flip-flops. | Compact; ~3.5x fewer lines of code. |
+| **Pipeline Modeling** | Manually declared registers (`q <= d`) per stage. | High-level timing stages (`@1`, `@2`) with automatic staging. |
+| **Retiming/Refactoring** | High risk; changing pipeline depth requires rewriting declarations. | Safe and trivial; compiler handles signal alignment when stages change. |
+| **Clock Gating** | Manually inserted gating cells or complex tool inferences. | Synthesized automatically based on pipeline signal validity (`$valid`). |
+| **Data Hazard Bypassing** | Large multiplexer trees that are easy to misconnect. | Declarative staging relationships (`>>1$signal`, `>>2$signal`). |
 
 ---
 
-## Day 2 — RISC-V ISA, Encoding and CPU Preparation
+## 📆 Day-by-Day Implementation Walkthrough
 
-The second day moved from general RISC-V concepts toward the details required to implement instructions in hardware.
+### 📦 Day 1 — Software-Hardware Interface & Toolchain
 
-I studied how the 32-bit instruction is divided into fields and how different instruction formats place their operands and immediate values in different locations.
+The project began by exploring how high-level software compiles down to target architecture instructions and interacts with system hardware through the Application Binary Interface (ABI).
 
-### Topics covered
+#### Key Concepts Learned
+* **RISC-V ISA**: Categorization of instructions (Base Integer RV32I/RV64I, Multiply/Divide RV64M, Floating-Point Extensions RV64F/RV64D).
+* **Compiler-Assembler-Linker Flow**: How a C source file is converted to object code, how the linker maps symbols, and how object dumps reveal binary assembly instructions.
+* **Spike Emulator & Debugger**: Running and stepping through instructions interactively, examining program counter (PC) values, and querying register contents.
+* **Data Widths & Endianness**: Distinction between bytes, halfwords, words, and doublewords. Understood RISC-V's implementation of little-endian memory layout.
 
-- R-type instructions
-- I-type instructions
-- S-type instructions
-- B-type instructions
-- U-type instructions
-- J-type instructions
-- Opcode
-- `funct3`
-- `funct7`
-- `rs1`
-- `rs2`
-- `rd`
-- Immediate generation
-- CPU datapath concepts
+#### Visual Evidence of Lab Work
 
-### The important transition
+##### 1. Assembly Compilation & Optimization Analysis
+Compiling `sum1ton.c` using the cross-compiler toolchain and examining assembly output under `-O1` optimization (showing 15 instructions in main):
+![Compilation and Assembly - O1](docs/images/Task_1.1.jpeg)
 
-The key step was moving from:
+Compiling under `-Ofast` optimization showing loop optimizations and instruction count reduction (reducing to 12 instructions):
+![Compilation and Assembly - Ofast](docs/images/Task_1.2.jpeg)
 
-> "What does this RISC-V instruction mean?"
+##### 2. Simulation & Interactive Debugging
+Simulating the binary using the Spike RISC-V ISA simulator in interactive debug mode. Executed instructions step-by-step and examined registers (`a0`, `a2`) to verify programmatic loops:
+![Spike Simulation Debugging](docs/images/Task_1.3.jpeg)
 
-to:
+##### 3. Integer Representation & ABI Subroutine Routing
+Verifying signed and unsigned values by simulating an unsigned overflow program (`unsignedhighest.c`) on Spike, yielding `18446744073709551615`:
+![Signed/Unsigned Spike Output](docs/images/Task_1.4.jpeg)
 
-> "What hardware signals are required to make the processor execute this instruction?"
+Developing a custom C program calling an assembly subroutine (`load.S`) to verify parameter passing conventions over registers `a0` and `a1`:
+![Assembly Subroutine Integration](docs/images/Task_1.5.jpeg)
 
-This directly prepared the work for instruction decoding and the CPU datapath in Days 4 and 5.
+Running the integrated assembly subroutine on Spike and checking results:
+![Spike Subroutine Execution](docs/images/Task_1.6.jpeg)
 
-**Detailed notes:** [`docs/theory/day-02-isa-and-encoding.md`](docs/theory/day-02-isa-and-encoding.md)
-
-**Day folder:** [`day-02-isa-and-encoding/`](day-02-isa-and-encoding/)
-
----
-
-# Day 3 — Digital Logic, TL-Verilog and Makerchip
-
-Day 3 was the transition from processor theory into hardware description and timing.
-
-The work began with simple combinational logic and progressively introduced vectors, multiplexers, state, sequential calculations, pipelining and validity.
-
-### 1. Makerchip
-
-I worked in the Makerchip environment and used TL-Verilog to describe hardware behavior.
-
-### 2. Combinational Logic
-
-I worked with basic Boolean operations and simple combinational relationships.
-
-```text
-NOT
-AND
-OR
-XOR
-```
-
-The objective was to become comfortable describing hardware behavior directly.
-
-### 3. Vectors
-
-The work then moved from individual bits to multi-bit signals.
-
-This was important because the later RISC-V processor operates on 32-bit datapath values.
-
-### 4. Multiplexer
-
-The MUX introduced selection between alternative datapaths:
-
-```text
-              ┌─────────┐
-input 1 ─────►│         │
-              │   MUX   ├────► output
-input 2 ─────►│         │
-              └────┬────┘
-                   │
-                 select
-```
-
-This concept appears repeatedly later in the CPU, particularly in result selection and next-PC selection.
-
-### 5. Calculator
-
-I implemented calculator-style logic to practice arithmetic operations and control-based result selection.
-
-### 6. Sequential Logic and State
-
-The work then introduced state, showing how hardware can retain information across clock cycles.
-
-### 7. Pipelined Logic
-
-The calculator exercises were extended into pipelined forms. This introduced the idea that different parts of a computation can occupy different stages simultaneously.
-
-### 8. Validity
-
-Validity was introduced to distinguish meaningful transactions from empty/bubble pipeline stages.
-
-### Why Day 3 mattered
-
-These were not isolated exercises. They introduced the exact hardware concepts used later in the processor:
-
-```text
-MUX       → CPU control selection
-Vector    → 32-bit datapath
-State     → PC / registers
-Pipeline  → CPU stages
-Validity  → pipeline control
-```
-
-**Detailed theory:** [`docs/theory/day-03-tl-verilog.md`](docs/theory/day-03-tl-verilog.md)
-
-**TL-Verilog examples:** [`day-03-tl-verilog-makerchip/lab-snippets/`](day-03-tl-verilog-makerchip/lab-snippets/)
+Analyzing the final object dump to inspect instructions and hex representations:
+![Assembly Object Dump](docs/images/Task_1.7.jpeg)
 
 ---
 
-# Day 4 — Building the RISC-V CPU
+### 🏛️ Day 2 — RISC-V Instruction Set Architecture (ISA) & Encoding
 
-Day 4 was the major transition from individual hardware exercises to an actual processor.
+Before writing RTL, the encoding scheme of the RV32I architecture was analyzed to plan the decoder logic.
 
-Instead of trying to build the complete CPU at once, the CPU was developed incrementally.
-
-## CPU development sequence
-
-```text
-                    ┌─────────────┐
-                    │  Next PC    │
-                    └──────┬──────┘
-                           ↓
-                    ┌─────────────┐
-                    │    Fetch    │
-                    └──────┬──────┘
-                           ↓
-                    ┌─────────────┐
-                    │   Decode    │
-                    └──────┬──────┘
-                           ↓
-                    ┌─────────────┐
-                    │ Register    │
-                    │    File     │
-                    └──────┬──────┘
-                           ↓
-                    ┌─────────────┐
-                    │    ALU      │
-                    └──────┬──────┘
-                           ↓
-                    ┌─────────────┐
-                    │ Memory /    │
-                    │ Writeback   │
-                    └─────────────┘
-```
-
-## Step 1 — Next PC
-
-The first CPU behavior was the program counter.
-
-The normal sequence is:
+#### Key Concepts Learned
+* **Instruction Formats**: Analyzed how R, I, S, B, U, and J instructions arrange their immediate fields and register selectors.
+* **Fields Structure**: Studied `opcode`, `funct3`, `funct7`, `rs1`, `rs2`, and `rd`.
+* **Immediate Reconstruction**: Formulated immediate logic to align scattered bits into a unified, sign-extended 32-bit immediate payload depending on the decoded instruction format.
 
 ```text
-reset → PC = 0
-normal → PC = PC + 4
-```
-
-The PC waveform was used as an early verification point.
-
-## Step 2 — Instruction Fetch
-
-Instruction memory was connected to the PC so that the processor could obtain the instruction corresponding to the current program address.
-
-## Step 3 — Instruction Type Decode
-
-The instruction was classified into the appropriate RISC-V format.
-
-```text
-R / I / S / B / U / J
-```
-
-## Step 4 — Immediate Decode
-
-The CPU generated the appropriate 32-bit immediate according to the instruction format.
-
-## Step 5 — Instruction Field Decode
-
-The processor extracted fields such as:
-
-```text
-opcode
-funct3
-funct7
-rs1
-rs2
-rd
-```
-
-and generated the appropriate validity/control information.
-
-## Step 6 — ALU
-
-The ALU became the execution unit for arithmetic, logical, comparison, shift and address-generation operations.
-
-## Step 7 — Register File
-
-The decoded source and destination registers were connected to the register-file interface.
-
-The architectural zero register behavior was preserved.
-
-## Step 8 — Branches
-
-Branch target calculation and branch conditions were added.
-
-The next-PC logic therefore evolved from:
-
-```text
-PC + 4
-```
-
-to:
-
-```text
-PC + 4
-        OR
-branch target
-```
-
-depending on control conditions.
-
-## Step 9 — Testbench
-
-The CPU was exercised using the workshop's test program.
-
-The target calculation is:
-
-```text
-1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 = 45
-```
-
-This provided an end-to-end functional check instead of testing individual signals only.
-
-**Detailed theory:** [`docs/theory/day-04-risc-v-cpu.md`](docs/theory/day-04-risc-v-cpu.md)
-
-**Development notes:** [`day-04-risc-v-cpu/cpu-development-notes.md`](day-04-risc-v-cpu/cpu-development-notes.md)
-
----
-
-# Day 5 — Pipelining and Completing the CPU
-
-Day 5 focused on turning the CPU into a more complete pipelined design and dealing with the problems created by overlapping instructions.
-
-## Pipeline
-
-The CPU was organized into staged processing:
-
-```text
-P → D → R → E → W
-
-P = Program counter / Fetch
-D = Decode
-R = Register Read
-E = Execute
-W = Writeback
-```
-
-This allows multiple instructions to occupy different stages simultaneously.
-
-## Validity
-
-A pipeline cannot assume that every cycle contains a meaningful instruction.
-
-Validity therefore became part of the CPU control.
-
-This is important after events such as:
-
-- reset
-- branch redirection
-- pipeline bubbles
-- replay
-
-Invalid instructions must not accidentally write architectural state.
-
-## Branch Handling
-
-When a branch is taken, the sequential PC path must be replaced by the branch target.
-
-Because the CPU is pipelined, this requires careful timing alignment between:
-
-- branch instruction
-- branch condition
-- branch target
-- validity
-- next-PC selection
-
-## Register-File Bypassing
-
-Pipeline dependencies create situations where an instruction needs a value that was produced by an earlier instruction but has not yet become visible through the normal register-file path.
-
-The solution developed was bypassing/forwarding.
-
-```text
-Previous instruction result
-          │
-          ▼
-     ┌──────────┐
-     │ Bypass   │
-     │   MUX    │
-     └────┬─────┘
-          │
-          ▼
-     ALU operand
-```
-
-## Load / Store
-
-The CPU was extended with memory operations.
-
-For a store:
-
-```text
-ALU → memory address
-register value → memory data
-store enable → memory
-```
-
-For a load:
-
-```text
-ALU → memory address
-memory → load data
-load data → writeback
-```
-
-## Load Replay
-
-Loads introduce another pipeline dependency because the loaded value becomes available later than a normal ALU result.
-
-The CPU therefore includes replay handling so dependent execution proceeds using the correct loaded value.
-
-## Final Integrated CPU
-
-The final saved CPU source is:
-
-[`day-05-pipelined-risc-v/final_cpu.tlv`](day-05-pipelined-risc-v/final_cpu.tlv)
-
-Development variants are preserved here:
-
-[`day-05-pipelined-risc-v/development-variants/`](day-05-pipelined-risc-v/development-variants/)
-
----
-
-# Final Project — Pipelined RISC-V CPU
-
-## Project Overview
-
-The final outcome of the workshop was not simply a collection of independent exercises.
-
-The exercises built toward an integrated processor.
-
-### Final architecture
-
-```text
-                         ┌─────────────────┐
-                         │   Next-PC MUX   │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │       PC        │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │ Instruction Mem │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │     Decode      │
-                         └───────┬─────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    ▼                         ▼
-             ┌─────────────┐          ┌─────────────┐
-             │ Register    │          │ Immediate   │
-             │    File     │          │ Generator   │
-             └──────┬──────┘          └──────┬──────┘
-                    │                         │
-                    └────────────┬────────────┘
-                                 ▼
-                          ┌─────────────┐
-                          │     ALU     │
-                          └──────┬──────┘
-                                 │
-                       ┌─────────┴─────────┐
-                       ▼                   ▼
-                ┌────────────┐      ┌────────────┐
-                │ Data Memory│      │ Writeback  │
-                └─────┬──────┘      └─────┬──────┘
-                      │                   │
-                      └─────────┬─────────┘
-                                ▼
-                         Register File
-```
-
-## Main functionality
-
-The integrated design covers:
-
-- Program counter
-- Instruction fetch
-- RISC-V instruction decoding
-- Immediate generation
-- Register-file read/write
-- ALU operations
-- Branch comparison
-- Branch target generation
-- Next-PC selection
-- Load/store memory interface
-- Pipeline validity
-- Branch handling
-- Register-file bypassing
-- Load replay
-- Testbench verification
-
----
-
-# What I Implemented
-
-Across the five days, my work covered the following practical areas:
-
-### RISC-V
-
-- ISA fundamentals
-- Instruction formats
-- Instruction fields
-- ABI/register conventions
-- Immediate encoding
-- Branches
-- Loads and stores
-- RISC-V CPU execution flow
-
-### Digital Design
-
-- Boolean logic
-- Combinational circuits
-- Vectors
-- Multiplexers
-- Sequential logic
-- State
-- Pipelining
-- Validity
-
-### TL-Verilog / Makerchip
-
-- Hardware description
-- Pipeline timing
-- Stage-based design
-- Signal validity
-- CPU implementation
-
-### CPU Microarchitecture
-
-- PC
-- Instruction memory
-- Decode
-- Register file
-- ALU
-- Branch control
-- Data memory
-- Writeback
-- Pipeline stages
-- Bypass logic
-- Replay handling
-
-### Verification
-
-- Simulation
-- Waveform inspection
-- Intermediate checkpoints
-- End-to-end testbench
-- Final expected-result checking
-
----
-
-# Verification
-
-The main functional program computes:
-
-```text
-1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9
-                         ↓
-                        45
-```
-
-The final verification therefore checks whether the CPU produces the expected result.
-
-Important intermediate verification points included:
-
-| Checkpoint | Expected behavior |
-|---|---|
-| Reset PC | `0` |
-| Sequential PC | `0, 4, 8, ...` |
-| Instruction fetch | Instruction follows PC |
-| Decode | Correct instruction type/fields |
-| Immediate | Correct format-dependent value |
-| ALU | Correct operation result |
-| Branch | Correct target and taken decision |
-| Validity | Invalid stages do not update state |
-| Load/store | Correct memory interface |
-| Bypass | Dependent instructions receive latest result |
-| Final program | Result = `45` |
-
----
-
-# Tools and Technologies
-
-| Tool / Technology | Use |
-|---|---|
-| **RISC-V** | Processor ISA |
-| **TL-Verilog** | Hardware description |
-| **Makerchip** | Design, simulation and visualization |
-| **RISC-V assembler environment** | Workshop test program |
-| **Simulation / waveforms** | Functional verification |
-| **Git / GitHub** | Versioned project portfolio |
-
----
-
-# Repository Structure
-
-```text
-RISC-V-MYTH-Workshop-Portfolio/
-│
-├── README.md
-│
-├── day-01-risc-v-fundamentals/
-│   └── README.md
-│
-├── day-02-isa-and-encoding/
-│   └── README.md
-│
-├── day-03-tl-verilog-makerchip/
-│   ├── README.md
-│   └── lab-snippets/
-│
-├── day-04-risc-v-cpu/
-│   ├── README.md
-│   └── cpu-development-notes.md
-│
-├── day-05-pipelined-risc-v/
-│   ├── README.md
-│   ├── final_cpu.tlv
-│   └── development-variants/
-│
-├── docs/
-│   ├── theory/
-│   ├── labs/
-│   ├── images/
-│   ├── reference/
-│   └── PORTFOLIO_INDEX.md
-│
-└── project-showcase/
-    ├── README.md
-    ├── architecture.md
-    ├── verification.md
-    └── learning-outcomes.md
+Instruction Formats:
+R-Type: | funct7 | rs2 | rs1 | funct3 | rd | opcode |
+I-Type: | immediate[11:0] | rs1 | funct3 | rd | opcode |
+S-Type: | imm[11:5] | rs2 | rs1 | funct3 | imm[4:0] | opcode |
+B-Type: | imm[12|10:5] | rs2 | rs1 | funct3 | imm[4:1|11] | opcode |
+U-Type: | immediate[31:12] | rd | opcode |
+J-Type: | imm[20|10:1|11|19:12] | rd | opcode |
 ```
 
 ---
 
-# Evidence
+### 🎛️ Day 3 — Digital Logic, TL-Verilog, & Makerchip Platform
 
-Screenshots from the work are preserved under [`docs/images/`](docs/images/).
+Day 3 established the hardware design foundation using the Makerchip online IDE and TL-Verilog. 
 
-These provide visual evidence of the development and Makerchip/simulation work rather than relying only on written descriptions.
+#### Key Concepts Learned
+* **Timing-Abstract Hardware Description**: Signal pipelines, where stages are labeled (`@1`, `@2`) and stage propagation is handled by the compiler.
+* **State & Recurrence**: Implementing sequential state (`$cnt = $reset ? 0 : >>1$cnt + 1;`) to form counters and recurrence loops.
+* **Validity (`$valid`)**: Gating transactions so calculations are only executed when signals contain valid data.
+* **Memory Architectures**: Designing 1-entry and 8-entry memory arrays to read and write stateful data index-by-index.
 
----
+#### Visual Evidence of Lab Work
 
-# Skills Developed
+##### 1. Combinational Logic Labs
+Exploring the Makerchip editor, compiler logs, visualizer, and waveform panels:
+![Makerchip IDE](docs/images/Task_3.1.jpeg)
 
-By the end of the workshop, I developed practical exposure to:
+Implementing a vector-width adder for the Pythagorean Theorem calculation ($a^2 + b^2 = c^2$):
+![Pythagorean Theorem Waveform](docs/images/Task_3.2.jpeg)
 
-- RISC-V ISA
-- CPU architecture
-- RTL/hardware description
-- TL-Verilog
-- Makerchip
-- Digital logic
-- Sequential circuits
-- Pipeline design
-- Instruction decoding
-- ALU design
-- Register-file integration
-- Branch handling
-- Load/store implementation
-- Pipeline validity
-- Data hazards
-- Register-file bypassing
-- Load replay
-- Simulation and verification
-- GitHub-based technical documentation
+Implementing a 2-to-1 vector multiplexer:
+![Vector MUX Selection](docs/images/Task_3.3.jpeg)
 
----
+Building a combinational calculator supporting addition, subtraction, multiplication, and division:
+![Combinational Calculator](docs/images/Task_3.4.jpeg)
 
-# Evidence and Reference Material
+##### 2. Sequential Logic & State Labs
+Modeling a Fibonacci recurrence sequence ($f(n) = f(n-1) + f(n-2)$) with reset states:
+![Fibonacci Recurrence](docs/images/Task_3.5.jpeg)
 
-The repository includes:
+Designing an 8-bit free-running counter:
+![8-bit Counter Simulation](docs/images/Task_3.6.jpeg)
 
-- My course notes
-- Day-by-day theory
-- Day-by-day lab documentation
-- TL-Verilog examples
-- CPU development files
-- Final CPU source
-- Development variants
-- Screenshots/results
+Integrating state into the calculator to design a sequential accumulator (storing and updating the calculated result):
+![Sequential Calculator Waveform](docs/images/Task_3.7.jpeg)
 
+##### 3. Pipelining & Validity Labs
+Distributing the calculator logic over a multi-stage pipeline:
+![Pipelined Calculator](docs/images/Task_3.8.jpeg)
 
-> **Copyright note:** The supplied workshop PDFs contain third-party course material. If this repository is made public, redistribution rights for those PDFs should be checked. They can alternatively be kept locally and excluded from the public GitHub repository.
+Applying a validity signal (`$valid`) to control when the pipelined calculator processes transactions:
+![Pipelined Calculator with Validity](docs/images/Task_3.9.jpeg)
 
----
+Designing a 2-cycle calculator executing operations on alternate cycles:
+![2-Cycle Calculator](docs/images/Task_3.10.jpeg)
 
-# Acknowledgements
+Gating the 2-cycle calculator with validity logic:
+![2-Cycle Calculator with Validity](docs/images/Task_3.11.jpeg)
 
-This portfolio is based on the supplied RISC-V MYTH Workshop course material and hands-on exercises.
+##### 4. Memory Integration Labs
+Adding a single-value memory element to calculate and recall values:
+![Single-Value Memory Calculator](docs/images/Task_3.12.jpeg)
 
-The work is organized here as a personal learning and implementation record, with the final CPU presented as the culmination of the five-day progression.
+Expanding memory to an 8-entry memory array using a 3-bit index to write and retrieve values:
+![8-Entry Memory Calculator Simulation](docs/images/Task_3.13.jpeg)
 
 ---
 
-## Final Takeaway
+### 🧠 Day 4 — Core RISC-V Datapath Design
 
-The most important outcome of the workshop was understanding the progression from a processor specification to hardware implementation:
+On Day 4, the single-cycle RISC-V CPU datapath was constructed.
 
-```text
-Instruction Set
-      ↓
-Instruction Encoding
-      ↓
-Hardware Logic
-      ↓
-Datapath
-      ↓
-Control
-      ↓
-Pipeline
-      ↓
-Hazard Handling
-      ↓
-Verification
-      ↓
-Working RISC-V CPU
+#### Key Concepts Learned
+* **Program Counter**: Drives instruction memory addresses and handles sequential steps (`PC + 4`).
+* **Instruction Decoder**: Classifies opcodes, funct fields, register numbers, and reconstructs 32-bit immediates.
+* **Arithmetic Logic Unit**: Performs arithmetic and comparison operations.
+* **Register File**: A 2-read, 1-write storage array mapping the 32 architectural registers. Included logic to ensure register `x0` remains hard-wired to zero.
+* **Branch Unit**: Evaluates target addresses and conditional codes (equality, comparisons) to update the program counter.
+
+#### Visual Evidence of Lab Work
+
+##### 1. Instruction Fetch & Decoders
+Designing the Program Counter to step through addresses sequential to instruction fetch:
+![PC Waveform Sequence](docs/images/Task_4.1.jpeg)
+
+Instantiating the instruction memory block containing the test binary program:
+![Fetch Phase 1](docs/images/Task_4.2.jpeg)
+
+Connecting the PC address to the instruction memory to output instruction codes (`$instr`):
+![Fetch Phase 2](docs/images/Task_4.3.jpeg)
+
+Decoding instructions into types (I, R, S, B, J, U):
+![Type Decoder](docs/images/Task_4.4.jpeg)
+
+Generating sign-extended instruction-type-dependent immediates:
+![Immediate Decoder](docs/images/Task_4.5.jpeg)
+
+##### 2. Fields Decoder, ALU, & Register File
+Extracting registers indices (`rs1`, `rs2`, `rd`) and funct fields under valid conditions:
+![Field Extraction Waveform](docs/images/Task_4.8.jpeg)
+
+Implementing the ALU to compute results for register and immediate instructions (ADD/ADDI):
+![ALU Implementation Output](docs/images/Task_4.8.1.jpeg)
+
+Integrating a register file to perform dual register reads:
+![Register File Read](docs/images/Task_4.9.jpeg)
+
+Connecting ALU results to the register file writeback port, protecting `x0`:
+![Register File Write](docs/images/Task_4.10.jpeg)
+
+##### 3. Branching & Verification
+Determining if a branch is taken based on source register comparisons:
+![Branch taken logic](docs/images/Task_4.11.jpeg)
+
+Selecting the branch target in the PC multiplexer when a branch instruction evaluates to taken:
+![Branch next-PC selection](docs/images/Task_4.12.jpeg)
+
+Verifying datapath functionality against a test program (register `x10` reaches `45`):
+![Single-Cycle Verification](docs/images/Task_4.13.jpeg)
+
+---
+
+### ⛓️ Day 5 — Pipelined Microarchitecture & Hazard Mitigation
+
+Day 5 focused on transforming the single-cycle datapath into a 5-stage pipelined processor while maintaining architectural correctness.
+
+#### Key Concepts Learned
+* **Pipeline Timing Stages**: Staging signals from Fetch `@0`, Decode `@1`, Register Read `@2`, Execute `@3` to Writeback `@4`.
+* **Data Hazards**: Solved using forwarding bypass multiplexers. If an instruction depends on a register written by an instruction that has not completed writeback, the operand value is bypassed directly from the execution or writeback stage.
+* **Control Hazards**: Handled by invalidating the validity (`$valid`) of the instructions in the shadow of a taken branch, redirecting the fetch stage to the branch target.
+* **Load-Use Hazards**: Since memory reads take longer, dependent instructions must stall. The load-replay mechanism invalidates instructions in the load shadow, redirects the PC to refetch them, and bypasses the load result when it becomes available.
+
+#### Visual Evidence of Lab Work
+
+##### 1. Pipeline Staging
+Staging CPU logic across 5 pipeline stages and checking waveforms:
+![Pipeline Staging Waves](docs/images/Task_5.1.jpeg)
+![Decode Staging Waves](docs/images/Task_5.2.jpeg)
+![Register File Read Staging](docs/images/Task_5.3.jpeg)
+![ALU Staging](docs/images/Task_5.4.jpeg)
+![Writeback Staging](docs/images/Task_5.5.jpeg)
+![Validity Integration](docs/images/Task_5.6.jpeg)
+
+##### 2. Branch Resolution in Pipeline
+Configuring branch taken redirects over the pipeline, invalidating instructions in the branch shadow:
+![Pipelined Branch Control](docs/images/Task_5.7.jpeg)
+
+##### 3. Register Forwarding (Bypassing)
+Resolving data hazards by routing executing results back to the register inputs of dependent instructions:
+![Bypass Forwarding Verification](docs/images/Task_5.8.jpeg)
+
+##### 4. Memory Interfaces
+Enabling data memory load/store operations:
+![DMem Addressing](docs/images/Task_5.9.jpeg)
+
+Handling load-use hazards through a load replay mechanism (forces a refetch loop):
+![Load Replay and Redirect Control](docs/images/Task_5.10.jpeg)
+
+Integrating the dual-ported Data Memory block:
+![DMem Read/Write Integration](docs/images/Task_5.11.jpeg)
+
+##### 5. Functional Program Verification
+Executing the complete program verifying load and store execution (writing result to address 16, loading back into register `x17`):
+![Load/Store Test Program Output](docs/images/Task_5.12.jpeg)
+
+##### 6. Jumps Integration
+Adding Jump and Link (JAL/JALR) target calculation and execution redirection:
+![Jump Redirection Waveforms](docs/images/Task_5.14.jpeg)
+
+---
+
+## 🔬 Functional Verification & Testbench
+
+The correctness of the pipelined processor was verified using a testbench program compiled into instruction memory. 
+
+### Test Program Logic
+The program iterates through a loop to sum integers from 1 to 9 ($1 + 2 + \dots + 9 = 45$). The result is accumulated in register `x14` (`a4`). Upon loop termination, the final sum is written to register `x10` (`a0`), stored in data memory at byte address 16, and loaded back into register `x17` (`a7`).
+
+The assembly code mapped in instruction memory is:
+```assembly
+# Regs: r10 (a0) = 0, r12 (a2) = 10, r13 (a3) = intermediate sum, r14 (a4) = accumulated sum
+ADD r10, r0, r0             # a0 = 0
+ADD r14, r10, r0            # a4 = 0
+ADDI r12, r10, 10           # a2 = 10
+ADD r13, r10, r0            # a3 = 0
+# Loop:
+ADD r14, r13, r14           # a4 = a3 + a4
+ADDI r13, r13, 1            # a3 = a3 + 1
+BLT r13, r12, -12           # If a3 < a2, branch back to Loop
+ADD r10, r14, r0            # a0 = a4 (sum = 45)
+# Verification store and load
+SW r0, r10, 16              # Store sum to memory address 16
+LW r17, r0, 16              # Load sum from memory address 16 into r17
 ```
 
-The repository therefore documents not only **what I built**, but also **how the individual concepts and labs contributed to the final processor design**.
+### Makerchip Testbench Assertion
+The testbench evaluates the value of register `x17` (stored as `xreg[17]` in the CPU hierarchy) at stage `@4`. The simulator checks:
+```tl-verilog
+*passed = |cpu/xreg[17]>>5$value == (1+2+3+4+5+6+7+8+9);
+```
+When `xreg[17]` reaches `45`, the testbench asserts success, printing a `passed` message in the simulation logs and halting.
+
+---
+
+## 📈 Key Technical Insights & Takeaways
+
+1. **Transaction-Level Verilog Productivity**: Designing at the transaction level dramatically reduces boilerplate code, automatically aligns pipelines, and avoids manual staging errors.
+2. **Pipeline Hazard Mechanics**: Implementing forwarding paths and load replays highlighted the balance between hardware execution latency, pipeline stalls, and CPU throughput (IPC).
+3. **Optimizations & Instruction Density**: Day 1 compiler optimization analysis showed that compiler flags significantly influence loops, conditional branches, and total instruction counts, affecting program execution time on custom silicon.
+4. **End-to-End Verification Strategy**: Staged functional checkpoints (e.g. verifying sequential PC, decode correctness, ALU execution, and register writes independently) simplified debugging before running the complete test program.
